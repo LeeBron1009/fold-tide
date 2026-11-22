@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#071614">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="折潮 Foldtide：放置會褪色的折光，引導自主脈衝收集孢子的無盡小遊戲。">
+<title>折潮 Foldtide</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --ink: #071614;
+    --gold: #e7d3a1;
+    --teal: #8fd0c8;
+    --rose: #f0a7b5;
+    --paper: #f4efe4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--ink); color: var(--paper);
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    overflow: hidden; touch-action: none;
+  }
+  #app { position: relative; width: 100%; height: 100%; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .hud, .panel {
+    position: absolute; left: 0; right: 0; pointer-events: none;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+  }
+  .hud { top: 0; display: flex; justify-content: space-between; gap: 8px; z-index: 2; }
+  .stat {
+    min-width: 72px; background: rgba(7,22,20,.55); border: 1px solid rgba(231,211,161,.25);
+    border-radius: 14px; padding: 8px 10px; backdrop-filter: blur(8px);
+  }
+  .stat b { display: block; font-size: 11px; letter-spacing: .12em; color: var(--gold); font-weight: 600; }
+  .stat span { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .panel {
+    inset: 0; display: flex; align-items: flex-end; justify-content: center;
+    padding: 20px 16px calc(18px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(7,22,20,.15), rgba(7,22,20,.78) 58%);
+    pointer-events: auto; z-index: 3;
+  }
+  .card {
+    width: min(440px, 100%); background: rgba(12,28,26,.88);
+    border: 1px solid rgba(231,211,161,.3); border-radius: 24px; padding: 22px 20px 18px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  h1 { margin: 0; font-size: 40px; letter-spacing: .18em; font-weight: 700; }
+  .en { color: var(--teal); letter-spacing: .22em; font-size: 12px; margin-top: 4px; }
+  p { line-height: 1.65; color: #efe7d8; font-size: 15px; }
+  ol { margin: 8px 0 14px; padding-left: 1.2em; color: #efe7d8; font-size: 14px; }
+  li { margin: 6px 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    pointer-events: auto; border: 0; border-radius: 999px; padding: 12px 16px;
+    font: inherit; font-size: 15px; cursor: pointer;
+  }
+  .primary { background: var(--gold); color: #1b1710; font-weight: 700; flex: 1; }
+  .ghost { background: transparent; color: var(--gold); border: 1px solid rgba(231,211,161,.45); }
+  .hint { position: absolute; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
+    text-align: center; color: rgba(244,239,228,.8); font-size: 13px; z-index: 2; pointer-events: none; }
+  .hidden { display: none !important; }
+  .toast {
+    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 28px; letter-spacing: .2em; color: var(--gold); pointer-events: none;
+    text-shadow: 0 8px 24px rgba(0,0,0,.45); z-index: 2; opacity: 0;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c"></canvas>
+  <div class="hud">
+    <div class="stat"><b>分數</b><span id="score">0</span></div>
+    <div class="stat"><b>潮次</b><span id="wave">1</span></div>
+    <div class="stat"><b>潮息</b><span id="breath">100</span></div>
+    <div class="stat"><b>最高</b><span id="best">0</span></div>
+  </div>
+  <div id="toast" class="toast"></div>
+  <div id="hint" class="hint hidden">點一下快速折光，拖曳可自訂角度</div>
+  <section id="start" class="panel">
+    <div class="card">
+      <div class="en">A TIDE YOU FOLD</div>
+      <h1>折潮</h1>
+      <p>你不能直接移動角色。潮汐脈衝會自己游，你只能放下會褪去的折光，把它折向孢子。折光不久就消失，所以每一潮都要重新想路線。</p>
+      <ol>
+        <li>點一下：放一片面向脈衝的折光。</li>
+        <li>按住拖曳：折光沿著你畫的方向，鬆開才放下。</li>
+        <li>收完孢子就進入下一潮，速度與數量會增加。</li>
+        <li>撞到邊界會掉潮息。潮息歸零，這潮就散了。</li>
+      </ol>
+      <div class="row">
+        <button class="primary" id="play">開始折潮</button>
+        <button class="ghost" id="mute">音效開</button>
+      </div>
+    </div>
+  </section>
+  <section id="over" class="panel hidden">
+    <div class="card">
+      <div class="en">TIDE SCATTERED</div>
+      <h1 id="rank">潮散</h1>
+      <p id="overText"></p>
+      <div class="row">
+        <button class="primary" id="again">再折一潮</button>
+        <button class="ghost" id="home">回封面</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+const $ = (id) => document.getElementById(id);
+const BEST_KEY = "foldtide-best";
+let W = 0, H = 0, DPR = 1;
+let state = "menu";
+let audioOn = true;
+let audioCtx = null;
+let best = Number(localStorage.getItem(BEST_KEY) || 0);
+$("best").textContent = best;
+
+const game = resetGame();
+
+function resetGame() {
+  return {
+    score: 0, wave: 1, breath: 100, combo: 0, comboT: 0,
+    pulse: null, mirrors: [], spores: [], particles: [], ripples: [],
+    pointer: null, preview: null, msg: "", msgT: 0, time: 0, shake: 0
+  };
+}
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function tone(freq, dur, type, gain) {
+  if (!audioOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type || "sine";
+    o.frequency.value = freq;
+    g.gain.value = gain || 0.04;
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch (e) {}
+}
+
+function toast(text) {
+  const el = $("toast");
+  el.textContent = text;
+  el.style.transition = "none";
+  el.style.opacity = 1;
+  requestAnimationFrame(() => {
+    el.style.transition = "opacity 1.1s ease";
+    el.style.opacity = 0;
+  });
+}
+
+function arena() {
+  const m = Math.min(W, H);
+  return { cx: W / 2, cy: H * 0.52, r: m * 0.42 };
+}
+
+function spawnWave(g) {
+  const a = arena();
+  const n = g.wave;
+  const count = Math.min(12, 3 + Math.floor(n * 0.65));
+  g.spores = [];
+  for (let i = 0; i < count; i++) {
+    const ang = (Math.PI * 2 * i) / count + n * 0.37;
+    const rad = a.r * (0.28 + (i % 3) * 0.18);
+    g.spores.push({
+      x: a.cx + Math.cos(ang) * rad,
+      y: a.cy + Math.sin(ang) * rad * 0.92,
+      r: n > 6 && i % 4 === 0 ? 16 : 13,
+      golden: n > 2 && i === 0,
+      alive: true,
+      phase: Math.random() * 6,
+      orbit: n >= 4 && i % 3 === 0,
+      ox: a.cx + Math.cos(ang) * rad,
+      oy: a.cy + Math.sin(ang) * rad * 0.92,
+      ang
+    });
+  }
+  const speed = 150 + n * 11;
+  const dir = Math.random() * Math.PI * 2;
+  g.pulse = {
+    x: a.cx, y: a.cy,
+    vx: Math.cos(dir) * speed,
+    vy: Math.sin(dir) * speed,
+    trail: []
+  };
+  g.mirrors = [];
+  toast("第 " + n + " 潮");
+  tone(220 + n * 8, 0.18, "triangle", 0.05);
+}
+
+function startGame() {
+  Object.assign(game, resetGame());
+  game.wave = 1;
+  state = "play";
+  $("start").classList.add("hidden");
+  $("over").classList.add("hidden");
+  $("hint").classList.remove("hidden");
+  spawnWave(game);
+  if (audioCtx) audioCtx.resume();
+}
+
+function endGame() {
+  state = "over";
+  $("hint").classList.add("hidden");
+  best = Math.max(best, game.score);
+  localStorage.setItem(BEST_KEY, String(best));
+  $("best").textContent = best;
+  const rank = game.wave >= 12 ? "無盡潮主" : game.wave >= 7 ? "折光師" : game.wave >= 4 ? "潮汐學徒" : "初折";
+  $("rank").textContent = rank;
+  $("overText").textContent = "你折到第 " + game.wave + " 潮，分數 " + game.score + "。最高分 " + best + "。下一潮的孢子會更多、脈衝更快，折光也褪得更快。";
+  $("over").classList.remove("hidden");
+  tone(140, 0.4, "sine", 0.06);
+}
+
+function mirrorLife() {
+  return Math.max(1.45, 4.1 - game.wave * 0.12);
+}
+
+function placeMirror(x1, y1, x2, y2) {
+  let dx = x2 - x1, dy = y2 - y1;
+  let len = Math.hypot(dx, dy);
+  if (len < 28) {
+    const p = game.pulse;
+    const spd = Math.hypot(p.vx, p.vy) || 1;
+    const nx = -p.vy / spd, ny = p.vx / spd;
+    len = 92;
+    x1 = x1 - nx * len / 2; y1 = y1 - ny * len / 2;
+    x2 = x1 + nx * len; y2 = y1 + ny * len;
+    dx = x2 - x1; dy = y2 - y1;
+  }
+  if (len > 170) {
+    const s = 170 / len;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    dx *= s; dy *= s; len = 170;
+    x1 = mx - dx / 2; y1 = my - dy / 2;
+    x2 = mx + dx / 2; y2 = my + dy / 2;
+  }
+  game.mirrors.push({ x1, y1, x2, y2, life: mirrorLife(), max: mirrorLife(), cool: 0 });
+  if (game.mirrors.length > 5) game.mirrors.shift();
+  game.ripples.push({ x: (x1 + x2) / 2, y: (y1 + y2) / 2, t: 0 });
+  tone(520, 0.08, "triangle", 0.03);
+}
+
+function reflect(vx, vy, nx, ny) {
+  const d = vx * nx + vy * ny;
+  return [vx - 2 * d * nx, vy - 2 * d * ny];
+}
+
+function segHit(px, py, vx, vy, dist, m) {
+  const x1 = m.x1, y1 = m.y1, x2 = m.x2, y2 = m.y2;
+  const sx = x2 - x1, sy = y2 - y1;
+  const den = vx * sy - vy * sx;
+  if (Math.abs(den) < 1e-6) return null;
+  const t = ((x1 - px) * sy - (y1 - py) * sx) / den;
+  const u = ((x1 - px) * vy - (y1 - py) * vx) / den;
+  if (t < 0.001 || t > dist || u < 0 || u > 1) return null;
+  let nx = -sy, ny = sx;
+  const nl = Math.hypot(nx, ny) || 1;
+  nx /= nl; ny /= nl;
+  if (nx * vx + ny * vy > 0) { nx = -nx; ny = -ny; }
+  return { t, nx, ny, x: px + vx * t, y: py + vy * t };
+}
+
+function burst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 30 + Math.random() * 90;
+    game.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, color });
+  }
+}
+
+function step(dt) {
+  const g = game;
+  g.time += dt;
+  g.comboT = Math.max(0, g.comboT - dt);
+  if (g.comboT === 0) g.combo = 0;
+  g.shake = Math.max(0, g.shake - dt);
+  const a = arena();
+  const p = g.pulse;
+  if (!p) return;
+
+  for (const s of g.spores) {
+    if (!s.alive || !s.orbit) continue;
+    s.ang += dt * (0.35 + g.wave * 0.02);
+    s.x = s.ox + Math.cos(s.ang) * 18;
+    s.y = s.oy + Math.sin(s.ang) * 14;
+  }
+
+  let remain = Math.hypot(p.vx, p.vy) * dt;
+  let guard = 0;
+  while (remain > 0.4 && guard++ < 8) {
+    let bestHit = null;
+    let bestM = null;
+    for (const m of g.mirrors) {
+      if (m.cool > 0) continue;
+      const hit = segHit(p.x, p.y, p.vx, p.vy, remain, m);
+      if (hit && (!bestHit || hit.t < bestHit.t)) { bestHit = hit; bestM = m; }
+    }
+    const toEdge = rayCircle(p.x, p.y, p.vx, p.vy, a.cx, a.cy, a.r - 8);
+    if (toEdge && toEdge.t <= remain && (!bestHit || toEdge.t < bestHit.t)) {
+      p.x += p.vx * toEdge.t; p.y += p.vy * toEdge.t;
+      const [rvx, rvy] = reflect(p.vx, p.vy, toEdge.nx, toEdge.ny);
+      p.vx = rvx; p.vy = rvy;
+      remain -= toEdge.t;
+      g.breath = Math.max(0, g.breath - (6 + g.wave * 0.4));
+      g.shake = 0.15;
+      burst(p.x, p.y, "#f0a7b5", 8);
+      tone(90, 0.12, "sawtooth", 0.03);
+      if (g.breath <= 0) { endGame(); return; }
+      continue;
+    }
+    if (!bestHit) {
+      p.x += p.vx * remain; p.y += p.vy * remain;
+      remain = 0;
+      break;
+    }
+    p.x = bestHit.x; p.y = bestHit.y;
+    const [rvx, rvy] = reflect(p.vx, p.vy, bestHit.nx, bestHit.ny);
+    p.vx = rvx; p.vy = rvy;
+    bestM.cool = 0.12;
+    remain -= bestHit.t;
+    burst(p.x, p.y, "#e7d3a1", 6);
+    tone(640, 0.05, "square", 0.02);
+  }
+
+  p.trail.push({ x: p.x, y: p.y });
+  if (p.trail.length > 28) p.trail.shift();
+
+  for (const s of g.spores) {
+    if (!s.alive) continue;
+    if (Math.hypot(s.x - p.x, s.y - p.y) < s.r + 7) {
+      s.alive = false;
+      g.combo = g.comboT > 0 ? g.combo + 1 : 1;
+      g.comboT = 1.15;
+      const gain = (s.golden ? 250 : 100) * g.combo;
+      g.score += gain;
+      g.breath = Math.min(100, g.breath + (s.golden ? 12 : 6));
+      burst(s.x, s.y, s.golden ? "#e7d3a1" : "#8fd0c8", 16);
+      tone(s.golden ? 880 : 480 + g.combo * 40, 0.12, "sine", 0.05);
+    }
+  }
+  if (g.spores.every(s => !s.alive)) {
+    g.score += 80 * g.wave;
+    g.wave += 1;
+    g.breath = Math.min(100, g.breath + 10);
+    spawnWave(g);
+  }
+
+  for (const m of g.mirrors) {
+    m.life -= dt;
+    m.cool = Math.max(0, m.cool - dt);
+  }
+  g.mirrors = g.mirrors.filter(m => m.life > 0);
+  for (const pt of g.particles) {
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
+  }
+  g.particles = g.particles.filter(pt => pt.life > 0);
+  for (const r of g.ripples) r.t += dt;
+  g.ripples = g.ripples.filter(r => r.t < 0.6);
+
+  $("score").textContent = g.score;
+  $("wave").textContent = g.wave;
+  $("breath").textContent = Math.ceil(g.breath);
+}
+
+function rayCircle(px, py, vx, vy, cx, cy, r) {
+  const dx = px - cx, dy = py - cy;
+  const a = vx * vx + vy * vy;
+  const b = 2 * (dx * vx + dy * vy);
+  const c = dx * dx + dy * dy - r * r;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return null;
+  const t = (-b + Math.sqrt(disc)) / (2 * a);
+  if (t < 0.001) return null;
+  const x = px + vx * t, y = py + vy * t;
+  const nx = (x - cx) / r, ny = (y - cy) / r;
+  return { t, nx, ny };
+}
+
+function draw() {
+  const a = arena();
+  const hue = 168 + game.wave * 4;
+  ctx.clearRect(0, 0, W, H);
+  const bg = ctx.createRadialGradient(a.cx, a.cy, 20, a.cx, a.cy, a.r * 1.6);
+  bg.addColorStop(0, "hsl(" + hue + ", 28%, 12%)");
+  bg.addColorStop(1, "#071614");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  if (game.shake > 0) ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+  ctx.beginPath();
+  ctx.arc(a.cx, a.cy, a.r, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(231,211,161,.35)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(a.cx, a.cy, a.r - 10, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(143,208,200,.12)";
+  ctx.stroke();
+
+  for (const s of game.spores) {
+    if (!s.alive) continue;
+    const pulse = 1 + Math.sin(game.time * 3 + s.phase) * 0.08;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = s.golden ? "rgba(231,211,161,.9)" : "rgba(143,208,200,.85)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r * 1.8, 0, Math.PI * 2);
+    ctx.strokeStyle = s.golden ? "rgba(231,211,161,.35)" : "rgba(143,208,200,.28)";
+    ctx.stroke();
+  }
+
+  for (const m of game.mirrors) {
+    const alpha = Math.max(0.15, m.life / m.max);
+    ctx.strokeStyle = "rgba(231,211,161," + alpha + ")";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(m.x1, m.y1);
+    ctx.lineTo(m.x2, m.y2);
+    ctx.stroke();
+  }
+  if (game.preview) {
+    const q = game.preview;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeStyle = "rgba(240,167,181,.8)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(q.x1, q.y1);
+    ctx.lineTo(q.x2, q.y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const p = game.pulse;
+  if (p) {
+    ctx.beginPath();
+    for (let i = 0; i < p.trail.length; i++) {
+      const t = p.trail[i];
+      if (i === 0) ctx.moveTo(t.x, t.y); else ctx.lineTo(t.x, t.y);
+    }
+    ctx.strokeStyle = "rgba(240,167,181,.55)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = "#f4efe4";
+    ctx.fill();
+  }
+  for (const pt of game.particles) {
+    ctx.globalAlpha = Math.max(0, pt.life);
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(pt.x, pt.y, 3, 3);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+
+  if (state === "menu") {
+    ctx.fillStyle = "rgba(231,211,161,.55)";
+    ctx.font = "13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("原創機制：褪色折光 × 自主脈衝 × 無盡潮次", W / 2, 28);
+  }
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  if (state === "play") step(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function pos(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (state !== "play") return;
+  canvas.setPointerCapture(e.pointerId);
+  const p = pos(e);
+  game.pointer = p;
+  game.preview = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!game.pointer || state !== "play") return;
+  const p = pos(e);
+  game.preview = { x1: game.pointer.x, y1: game.pointer.y, x2: p.x, y2: p.y };
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!game.pointer || state !== "play") return;
+  const p = pos(e);
+  placeMirror(game.pointer.x, game.pointer.y, p.x, p.y);
+  game.pointer = null;
+  game.preview = null;
+  $("hint").classList.add("hidden");
+});
+
+$("play").onclick = startGame;
+$("again").onclick = startGame;
+$("home").onclick = () => {
+  state = "menu";
+  $("over").classList.add("hidden");
+  $("start").classList.remove("hidden");
+};
+$("mute").onclick = () => {
+  audioOn = !audioOn;
+  $("mute").textContent = audioOn ? "音效開" : "音效關";
+};
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

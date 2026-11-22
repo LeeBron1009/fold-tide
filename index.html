@@ -1,539 +1,64 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#071614">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="折潮 Foldtide：放置會褪色的折光，引導自主脈衝收集孢子的無盡小遊戲。">
-<title>折潮 Foldtide</title>
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#071614"><title>折潮・修正版</title>
 <style>
-  :root {
-    --ink: #071614;
-    --gold: #e7d3a1;
-    --teal: #8fd0c8;
-    --rose: #f0a7b5;
-    --paper: #f4efe4;
-  }
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    margin: 0; height: 100%; background: var(--ink); color: var(--paper);
-    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
-    overflow: hidden; touch-action: none;
-  }
-  #app { position: relative; width: 100%; height: 100%; }
-  canvas { display: block; width: 100%; height: 100%; }
-  .hud, .panel {
-    position: absolute; left: 0; right: 0; pointer-events: none;
-    padding: calc(12px + env(safe-area-inset-top)) 16px 0;
-  }
-  .hud { top: 0; display: flex; justify-content: space-between; gap: 8px; z-index: 2; }
-  .stat {
-    min-width: 72px; background: rgba(7,22,20,.55); border: 1px solid rgba(231,211,161,.25);
-    border-radius: 14px; padding: 8px 10px; backdrop-filter: blur(8px);
-  }
-  .stat b { display: block; font-size: 11px; letter-spacing: .12em; color: var(--gold); font-weight: 600; }
-  .stat span { font-size: 18px; font-variant-numeric: tabular-nums; }
-  .panel {
-    inset: 0; display: flex; align-items: flex-end; justify-content: center;
-    padding: 20px 16px calc(18px + env(safe-area-inset-bottom));
-    background: linear-gradient(180deg, rgba(7,22,20,.15), rgba(7,22,20,.78) 58%);
-    pointer-events: auto; z-index: 3;
-  }
-  .card {
-    width: min(440px, 100%); background: rgba(12,28,26,.88);
-    border: 1px solid rgba(231,211,161,.3); border-radius: 24px; padding: 22px 20px 18px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.35);
-  }
-  h1 { margin: 0; font-size: 40px; letter-spacing: .18em; font-weight: 700; }
-  .en { color: var(--teal); letter-spacing: .22em; font-size: 12px; margin-top: 4px; }
-  p { line-height: 1.65; color: #efe7d8; font-size: 15px; }
-  ol { margin: 8px 0 14px; padding-left: 1.2em; color: #efe7d8; font-size: 14px; }
-  li { margin: 6px 0; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  button {
-    pointer-events: auto; border: 0; border-radius: 999px; padding: 12px 16px;
-    font: inherit; font-size: 15px; cursor: pointer;
-  }
-  .primary { background: var(--gold); color: #1b1710; font-weight: 700; flex: 1; }
-  .ghost { background: transparent; color: var(--gold); border: 1px solid rgba(231,211,161,.45); }
-  .hint { position: absolute; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
-    text-align: center; color: rgba(244,239,228,.8); font-size: 13px; z-index: 2; pointer-events: none; }
-  .hidden { display: none !important; }
-  .toast {
-    position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%);
-    font-size: 28px; letter-spacing: .2em; color: var(--gold); pointer-events: none;
-    text-shadow: 0 8px 24px rgba(0,0,0,.45); z-index: 2; opacity: 0;
-  }
-</style>
-</head>
-<body>
-<div id="app">
-  <canvas id="c"></canvas>
-  <div class="hud">
-    <div class="stat"><b>分數</b><span id="score">0</span></div>
-    <div class="stat"><b>潮次</b><span id="wave">1</span></div>
-    <div class="stat"><b>潮息</b><span id="breath">100</span></div>
-    <div class="stat"><b>最高</b><span id="best">0</span></div>
-  </div>
-  <div id="toast" class="toast"></div>
-  <div id="hint" class="hint hidden">點一下快速折光，拖曳可自訂角度</div>
-  <section id="start" class="panel">
-    <div class="card">
-      <div class="en">A TIDE YOU FOLD</div>
-      <h1>折潮</h1>
-      <p>你不能直接移動角色。潮汐脈衝會自己游，你只能放下會褪去的折光，把它折向孢子。折光不久就消失，所以每一潮都要重新想路線。</p>
-      <ol>
-        <li>點一下：放一片面向脈衝的折光。</li>
-        <li>按住拖曳：折光沿著你畫的方向，鬆開才放下。</li>
-        <li>收完孢子就進入下一潮，速度與數量會增加。</li>
-        <li>撞到邊界會掉潮息。潮息歸零，這潮就散了。</li>
-      </ol>
-      <div class="row">
-        <button class="primary" id="play">開始折潮</button>
-        <button class="ghost" id="mute">音效開</button>
-      </div>
-    </div>
-  </section>
-  <section id="over" class="panel hidden">
-    <div class="card">
-      <div class="en">TIDE SCATTERED</div>
-      <h1 id="rank">潮散</h1>
-      <p id="overText"></p>
-      <div class="row">
-        <button class="primary" id="again">再折一潮</button>
-        <button class="ghost" id="home">回封面</button>
-      </div>
-    </div>
-  </section>
-</div>
+*{box-sizing:border-box}body{margin:0;background:#071614;color:#f4efe4;font:15px system-ui,"Microsoft JhengHei",sans-serif;overflow:hidden}canvas{display:block;width:100vw;height:100dvh;touch-action:none}button{font:inherit;border:1px solid #776f51;border-radius:14px;padding:12px 16px;background:#182c29;color:#eee7d7;cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{background:#e7d3a1;color:#172421;font-weight:bold}.hud{position:fixed;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;gap:7px;padding:10px;pointer-events:none}.stat{background:#0c211edb;border:1px solid #465449;border-radius:12px;padding:7px 10px;min-width:60px}.stat small{display:block;color:#d7c798;font-size:11px}.hud button{margin-left:auto;pointer-events:auto;padding:8px 12px}.overlay{position:fixed;inset:0;background:#03120fc7;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}.card{width:min(510px,100%);max-height:88dvh;overflow:auto;background:#102421;border:1px solid #6d7054;border-radius:24px;padding:24px;box-shadow:0 25px 80px #0006}h1{font-size:42px;letter-spacing:.15em;margin:8px 0}h2{margin:0 0 12px}.en{color:#8fd0c8;letter-spacing:.22em;font-size:12px}p{line-height:1.75;color:#dce4d9}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.row button{flex:1}.choice{display:block;width:100%;text-align:left;margin:10px 0;line-height:1.7}.choice strong{display:block;color:#e7d3a1}.note{font-size:12px;color:#a7bfb3}.hidden{display:none!important}#toast{position:fixed;top:23%;left:0;right:0;text-align:center;pointer-events:none;color:#e7d3a1;font-size:22px;text-shadow:0 2px 8px #000;opacity:0;transition:opacity .25s}#bottom{position:fixed;bottom:max(12px,env(safe-area-inset-bottom));left:10px;right:10px;text-align:center;color:#a9c4b9;font-size:12px;pointer-events:none}@media(max-width:420px){.hud{gap:4px;padding:7px}.stat{min-width:49px;padding:6px 7px}.hud button{padding:6px 8px}.card{padding:19px}}
+</style></head><body>
+<canvas id="canvas"></canvas><div class="hud"><div class="stat"><small>分數</small><span id="score">0</span></div><div class="stat"><small>潮次</small><span id="wave">1</span></div><div class="stat"><small>潮息</small><span id="hp">100</span></div><div class="stat"><small>潮屑</small><span id="money">0</span></div><button id="pause" class="hidden">暫停</button></div><div id="toast"></div><div id="bottom">點擊放折光 · 拖曳決定角度</div><div id="overlay" class="overlay"><div id="panel" class="card"></div></div>
 <script>
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-const $ = (id) => document.getElementById(id);
-const BEST_KEY = "foldtide-best";
-let W = 0, H = 0, DPR = 1;
-let state = "menu";
-let audioOn = true;
-let audioCtx = null;
-let best = Number(localStorage.getItem(BEST_KEY) || 0);
-$("best").textContent = best;
-
-const game = resetGame();
-
-function resetGame() {
-  return {
-    score: 0, wave: 1, breath: 100, combo: 0, comboT: 0,
-    pulse: null, mirrors: [], spores: [], particles: [], ripples: [],
-    pointer: null, preview: null, msg: "", msgT: 0, time: 0, shake: 0
-  };
+'use strict';
+const $=id=>document.getElementById(id),canvas=$('canvas'),ctx=canvas.getContext('2d');
+const KEY='foldtide-fixed-v4';let meta={best:0,money:0,life:0,health:0,bonus:0,ach:[],skin:'gold',daily:{}};
+try{const old=JSON.parse(localStorage.getItem(KEY)||'null');if(old)Object.assign(meta,old)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(meta))}catch(e){}}
+let W=0,H=0,A={},state='menu',g=null,mode='endless',pointer=null,sound=true,audio=null,toastEnd=0;
+const themes=[['墨潮',168],['金沙',38],['霜潮',204],['夜螢',280]];
+function resize(){const before=A;W=innerWidth;H=innerHeight;const d=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(W*d);canvas.height=Math.round(H*d);ctx.setTransform(d,0,0,d,0,0);A={x:W/2,y:(H+70)/2,r:Math.max(45,Math.min(W*.44,(H-160)*.46))};if(g&&before.r){const k=A.r/before.r;for(const o of [g.p,...g.spores,...g.reefs,...g.items]){o.x=A.x+(o.x-before.x)*k;o.y=A.y+(o.y-before.y)*k;if(o.ox!==undefined){o.ox=A.x+(o.ox-before.x)*k;o.oy=A.y+(o.oy-before.y)*k}}if(g.boss){g.boss.x=A.x;g.boss.y=A.y}g.mirrors=[];g.p.trail=[];pointer=null} }
+addEventListener('resize',resize);resize();
+function beep(f=500){if(!sound)return;try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),v=audio.createGain();o.frequency.value=f;v.gain.setValueAtTime(.035,audio.currentTime);v.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.13);o.connect(v);v.connect(audio.destination);o.start();o.stop(audio.currentTime+.14)}catch(e){}}
+function toast(t){$('toast').textContent=t;$('toast').style.opacity=1;toastEnd=performance.now()+1500}
+function show(html){$('panel').innerHTML=html;$('overlay').classList.remove('hidden');$('pause').classList.add('hidden');pointer=null}
+function button(id,text,fn,cls=''){const b=document.createElement('button');b.id=id;b.textContent=text;b.className=cls;b.onclick=fn;return b}
+function row(actions){const r=document.createElement('div');r.className='row';for(const [text,fn,cls]of actions)r.append(button('',text,fn,cls||''));$('panel').append(r)}
+function menu(){state='menu';hud();show(`<div class="en">FOLDTIDE · FIXED EDITION</div><h1>折潮</h1><p>你不直接控制白色脈衝，而是畫下折光，讓它反彈、收集孢子。每五潮挑戰潮核。</p><p class="note">點一下快速放置垂直於行進方向的折光；拖曳自訂角度。最多保留五片。撞牆扣潮息，收集孢子回復。每潮開場有三秒護航。</p><p>最高 ${meta.best}　潮屑 ${meta.money}<br>成就 ${meta.ach.length}/6</p>`);row([['無盡潮',()=>start('endless'),'primary'],['每日潮',()=>start('daily')],['練習',()=>start('practice')]]);row([['永久強化',shop],['圖鑑／成就',codex],['音效：'+(sound?'開':'關'),()=>{sound=!sound;menu()}]]);$('bottom').textContent='修正版 v4 · 不依賴外部套件 · 單檔可玩'}
+function seeded(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function day(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function maxHP(){return mode==='daily'?100:100+meta.health*12}
+function start(m){mode=m;g={wave:1,score:0,hp:100,time:0,spores:[],reefs:[],items:[],mirrors:[],particles:[],p:null,boss:null,combo:0,comboTimer:0,slow:0,grace:3,damageCD:0,echo:0,echoTimer:0,echoReady:0,collected:0,cleared:0,earned:0,runLife:0,runCombo:0,nextSlow:false,rng:m==='daily'?seeded(Number(day().replaceAll('-',''))):Math.random};g.hp=maxHP();beep(300);nextWave()}
+function random(){return g.rng()}
+function nextWave(){state='play';$('overlay').classList.add('hidden');$('pause').classList.remove('hidden');g.spores=[];g.reefs=[];g.items=[];g.mirrors=[];g.boss=null;g.grace=3;g.damageCD=0;g.echo=0;g.echoReady=0;pointer=null;const n=g.wave,boss=n%5===0,count=boss?3:Math.min(12,3+Math.floor(n*.55));for(let i=0;i<count;i++){const a=2*Math.PI*i/count+random()*.5,r=A.r*(.3+(i%3)*.16);let kind='normal';if(n>=2&&i===0)kind='gold';else if(n>=8&&i%5===2)kind='wisp';else if(n>=6&&i%4===1)kind='split';else if(n>=4&&i%3===0)kind='orbit';const x=A.x+Math.cos(a)*r,y=A.y+Math.sin(a)*r;g.spores.push({x,y,ox:x,oy:y,r:kind==='wisp'?9:12,kind,angle:a,alive:true})}
+if(n>=3){for(let i=0;i<Math.min(4,Math.floor(n/3));i++){let found=null;for(let tries=0;tries<30;tries++){const a=random()*Math.PI*2,r=A.r*(.38+random()*.36),o={x:A.x+Math.cos(a)*r,y:A.y+Math.sin(a)*r,r:Math.min(20,A.r*.09)};if([...g.spores,...g.reefs].every(s=>Math.hypot(s.x-o.x,s.y-o.y)>s.r+o.r+24)){found=o;break}}if(found)g.reefs.push(found)}}
+if(n>=2&&random()<.65){const a=random()*6.283;g.items.push({x:A.x+Math.cos(a)*A.r*.22,y:A.y+Math.sin(a)*A.r*.22,r:11,kind:['heal','slow','long'][Math.floor(random()*3)]})}
+if(boss)g.boss={x:A.x,y:A.y,r:Math.min(27,A.r*.13),hp:3+Math.floor(n/5),cool:0};const angle=random()*Math.PI*2,speed=Math.min(310,(mode==='practice'?95:125)+n*7)*(g.nextSlow?.8:1);g.nextSlow=false;g.p={x:A.x+Math.cos(angle)*A.r*.22,y:A.y+Math.sin(angle)*A.r*.22,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,trail:[]};toast((boss?'潮核挑戰':themes[Math.floor((n-1)/3)%4][0])+' · 第 '+n+' 潮');hud()}
+function hud(){$('score').textContent=g?g.score:0;$('wave').textContent=g?g.wave:1;$('hp').textContent=g?Math.ceil(Math.max(0,g.hp)):100;$('money').textContent=meta.money}
+function achievement(id){if(mode==='practice'||meta.ach.includes(id))return;meta.ach.push(id);save();toast('成就：'+id)}
+function points(n){g.score+=Math.round(n*(mode==='daily'?1:1+meta.bonus*.06))}
+function damage(n){if(mode==='practice'||g.grace>0||g.damageCD>0)return;g.hp=Math.max(0,g.hp-n);g.damageCD=.6;g.combo=0;beep(110);if(g.hp<=0)end(false)}
+function burst(x,y,color){for(let i=0;i<12;i++){const a=Math.random()*6.283,s=30+Math.random()*65;g.particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.6,color})}}
+function collect(s){if(!s.alive)return;s.alive=false;g.collected++;g.combo=g.comboTimer>0?g.combo+1:1;g.comboTimer=1.7+g.runCombo;points((s.kind==='gold'?220:s.child?60:100)*Math.min(g.combo,8));g.hp=Math.min(maxHP(),g.hp+(s.kind==='gold'?12:5));burst(s.x,s.y,s.kind==='gold'?'#e7d3a1':'#8fd0c8');beep(450+g.combo*35);if(g.combo>=5)achievement('五連擊');if(g.collected>=30)achievement('採集三十');if(s.kind==='split'){for(const sign of[-1,1]){let x=s.x+sign*19,y=s.y,dx=x-A.x,dy=y-A.y,d=Math.hypot(dx,dy);if(d>A.r-22){x=A.x+dx/d*(A.r-22);y=A.y+dy/d*(A.r-22)}g.spores.push({x,y,r:8,kind:'normal',child:true,alive:true})}}}
+function normalizeReflect(nx,ny){const p=g.p,d=p.vx*nx+p.vy*ny;p.vx-=2*d*nx;p.vy-=2*d*ny}
+// All movement uses seconds and pixels/second. Small physics substeps prevent tunnelling.
+function physics(dt){const p=g.p,scale=g.slow>0?.55:1;p.x+=p.vx*dt*scale;p.y+=p.vy*dt*scale;
+let dx=p.x-A.x,dy=p.y-A.y,d=Math.hypot(dx,dy),limit=A.r-7;if(d>limit){const nx=dx/d,ny=dy/d;p.x=A.x+nx*(limit-.1);p.y=A.y+ny*(limit-.1);if(p.vx*nx+p.vy*ny>0)normalizeReflect(nx,ny);damage(6+g.wave*.25);if(state!=='play')return}
+for(const m of g.mirrors){if(m.cool>0)continue;const sx=m.x2-m.x1,sy=m.y2-m.y1,l2=sx*sx+sy*sy,t=Math.max(0,Math.min(1,((p.x-m.x1)*sx+(p.y-m.y1)*sy)/l2)),qx=m.x1+sx*t,qy=m.y1+sy*t;dx=p.x-qx;dy=p.y-qy;d=Math.hypot(dx,dy);if(d<9){let nx,ny;if(d>.0001){nx=dx/d;ny=dy/d}else{const l=Math.sqrt(l2);nx=-sy/l;ny=sx/l;if(p.vx*nx+p.vy*ny>0){nx=-nx;ny=-ny}}p.x=qx+nx*9.2;p.y=qy+ny*9.2;if(p.vx*nx+p.vy*ny<0){normalizeReflect(nx,ny);beep(620);g.echo=g.echoTimer>0?g.echo+1:1;g.echoTimer=2;if(g.echo>=3){g.echo=0;g.echoReady=1;toast('三折回聲')}}m.cool=.12}}
+for(const r of [...g.reefs,...(g.boss?[g.boss]:[])]){dx=p.x-r.x;dy=p.y-r.y;d=Math.hypot(dx,dy);if(d<r.r+7){const nx=d>.001?dx/d:1,ny=d>.001?dy/d:0;p.x=r.x+nx*(r.r+7.2);p.y=r.y+ny*(r.r+7.2);if(p.vx*nx+p.vy*ny<0)normalizeReflect(nx,ny);if(r===g.boss){if(r.cool<=0){r.hp--;r.cool=.45;points(150);burst(r.x,r.y,'#e7d3a1');beep(260);if(r.hp<=0){g.boss=null;points(500);if(mode!=='practice')g.earned+=3;achievement('潮核碎裂');toast('潮核碎裂')}}}else damage(9);if(state!=='play')return}}
+for(const s of [...g.spores])if(s.alive&&Math.hypot(p.x-s.x,p.y-s.y)<s.r+7)collect(s);
+if(g.echoReady>0){const target=g.spores.find(s=>s.alive&&Math.hypot(p.x-s.x,p.y-s.y)<85);if(target){collect(target);g.echoReady=0}}
+for(const u of g.items){if(u.taken||Math.hypot(p.x-u.x,p.y-u.y)>u.r+7)continue;u.taken=true;if(u.kind==='heal')g.hp=Math.min(maxHP(),g.hp+22);if(u.kind==='slow')g.slow=4;if(u.kind==='long')for(const m of g.mirrors){m.life+=2;m.max+=2}toast({heal:'回息 +22',slow:'緩潮 4 秒',long:'場上折光延長 2 秒'}[u.kind]);beep(780)}g.items=g.items.filter(u=>!u.taken)
 }
-
-function resize() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
-  W = window.innerWidth; H = window.innerHeight;
-  canvas.width = W * DPR; canvas.height = H * DPR;
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-}
-window.addEventListener("resize", resize);
-resize();
-
-function tone(freq, dur, type, gain) {
-  if (!audioOn) return;
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = type || "sine";
-    o.frequency.value = freq;
-    g.gain.value = gain || 0.04;
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + dur);
-  } catch (e) {}
-}
-
-function toast(text) {
-  const el = $("toast");
-  el.textContent = text;
-  el.style.transition = "none";
-  el.style.opacity = 1;
-  requestAnimationFrame(() => {
-    el.style.transition = "opacity 1.1s ease";
-    el.style.opacity = 0;
-  });
-}
-
-function arena() {
-  const m = Math.min(W, H);
-  return { cx: W / 2, cy: H * 0.52, r: m * 0.42 };
-}
-
-function spawnWave(g) {
-  const a = arena();
-  const n = g.wave;
-  const count = Math.min(12, 3 + Math.floor(n * 0.65));
-  g.spores = [];
-  for (let i = 0; i < count; i++) {
-    const ang = (Math.PI * 2 * i) / count + n * 0.37;
-    const rad = a.r * (0.28 + (i % 3) * 0.18);
-    g.spores.push({
-      x: a.cx + Math.cos(ang) * rad,
-      y: a.cy + Math.sin(ang) * rad * 0.92,
-      r: n > 6 && i % 4 === 0 ? 16 : 13,
-      golden: n > 2 && i === 0,
-      alive: true,
-      phase: Math.random() * 6,
-      orbit: n >= 4 && i % 3 === 0,
-      ox: a.cx + Math.cos(ang) * rad,
-      oy: a.cy + Math.sin(ang) * rad * 0.92,
-      ang
-    });
-  }
-  const speed = 150 + n * 11;
-  const dir = Math.random() * Math.PI * 2;
-  g.pulse = {
-    x: a.cx, y: a.cy,
-    vx: Math.cos(dir) * speed,
-    vy: Math.sin(dir) * speed,
-    trail: []
-  };
-  g.mirrors = [];
-  toast("第 " + n + " 潮");
-  tone(220 + n * 8, 0.18, "triangle", 0.05);
-}
-
-function startGame() {
-  Object.assign(game, resetGame());
-  game.wave = 1;
-  state = "play";
-  $("start").classList.add("hidden");
-  $("over").classList.add("hidden");
-  $("hint").classList.remove("hidden");
-  spawnWave(game);
-  if (audioCtx) audioCtx.resume();
-}
-
-function endGame() {
-  state = "over";
-  $("hint").classList.add("hidden");
-  best = Math.max(best, game.score);
-  localStorage.setItem(BEST_KEY, String(best));
-  $("best").textContent = best;
-  const rank = game.wave >= 12 ? "無盡潮主" : game.wave >= 7 ? "折光師" : game.wave >= 4 ? "潮汐學徒" : "初折";
-  $("rank").textContent = rank;
-  $("overText").textContent = "你折到第 " + game.wave + " 潮，分數 " + game.score + "。最高分 " + best + "。下一潮的孢子會更多、脈衝更快，折光也褪得更快。";
-  $("over").classList.remove("hidden");
-  tone(140, 0.4, "sine", 0.06);
-}
-
-function mirrorLife() {
-  return Math.max(1.45, 4.1 - game.wave * 0.12);
-}
-
-function placeMirror(x1, y1, x2, y2) {
-  let dx = x2 - x1, dy = y2 - y1;
-  let len = Math.hypot(dx, dy);
-  if (len < 28) {
-    const p = game.pulse;
-    const spd = Math.hypot(p.vx, p.vy) || 1;
-    const nx = -p.vy / spd, ny = p.vx / spd;
-    len = 92;
-    x1 = x1 - nx * len / 2; y1 = y1 - ny * len / 2;
-    x2 = x1 + nx * len; y2 = y1 + ny * len;
-    dx = x2 - x1; dy = y2 - y1;
-  }
-  if (len > 170) {
-    const s = 170 / len;
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    dx *= s; dy *= s; len = 170;
-    x1 = mx - dx / 2; y1 = my - dy / 2;
-    x2 = mx + dx / 2; y2 = my + dy / 2;
-  }
-  game.mirrors.push({ x1, y1, x2, y2, life: mirrorLife(), max: mirrorLife(), cool: 0 });
-  if (game.mirrors.length > 5) game.mirrors.shift();
-  game.ripples.push({ x: (x1 + x2) / 2, y: (y1 + y2) / 2, t: 0 });
-  tone(520, 0.08, "triangle", 0.03);
-}
-
-function reflect(vx, vy, nx, ny) {
-  const d = vx * nx + vy * ny;
-  return [vx - 2 * d * nx, vy - 2 * d * ny];
-}
-
-function segHit(px, py, vx, vy, dist, m) {
-  const x1 = m.x1, y1 = m.y1, x2 = m.x2, y2 = m.y2;
-  const sx = x2 - x1, sy = y2 - y1;
-  const den = vx * sy - vy * sx;
-  if (Math.abs(den) < 1e-6) return null;
-  const t = ((x1 - px) * sy - (y1 - py) * sx) / den;
-  const u = ((x1 - px) * vy - (y1 - py) * vx) / den;
-  if (t < 0.001 || t > dist || u < 0 || u > 1) return null;
-  let nx = -sy, ny = sx;
-  const nl = Math.hypot(nx, ny) || 1;
-  nx /= nl; ny /= nl;
-  if (nx * vx + ny * vy > 0) { nx = -nx; ny = -ny; }
-  return { t, nx, ny, x: px + vx * t, y: py + vy * t };
-}
-
-function burst(x, y, color, n) {
-  for (let i = 0; i < n; i++) {
-    const a = Math.random() * Math.PI * 2;
-    const s = 30 + Math.random() * 90;
-    game.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5 + Math.random() * 0.4, color });
-  }
-}
-
-function step(dt) {
-  const g = game;
-  g.time += dt;
-  g.comboT = Math.max(0, g.comboT - dt);
-  if (g.comboT === 0) g.combo = 0;
-  g.shake = Math.max(0, g.shake - dt);
-  const a = arena();
-  const p = g.pulse;
-  if (!p) return;
-
-  for (const s of g.spores) {
-    if (!s.alive || !s.orbit) continue;
-    s.ang += dt * (0.35 + g.wave * 0.02);
-    s.x = s.ox + Math.cos(s.ang) * 18;
-    s.y = s.oy + Math.sin(s.ang) * 14;
-  }
-
-  let remain = Math.hypot(p.vx, p.vy) * dt;
-  let guard = 0;
-  while (remain > 0.4 && guard++ < 8) {
-    let bestHit = null;
-    let bestM = null;
-    for (const m of g.mirrors) {
-      if (m.cool > 0) continue;
-      const hit = segHit(p.x, p.y, p.vx, p.vy, remain, m);
-      if (hit && (!bestHit || hit.t < bestHit.t)) { bestHit = hit; bestM = m; }
-    }
-    const toEdge = rayCircle(p.x, p.y, p.vx, p.vy, a.cx, a.cy, a.r - 8);
-    if (toEdge && toEdge.t <= remain && (!bestHit || toEdge.t < bestHit.t)) {
-      p.x += p.vx * toEdge.t; p.y += p.vy * toEdge.t;
-      const [rvx, rvy] = reflect(p.vx, p.vy, toEdge.nx, toEdge.ny);
-      p.vx = rvx; p.vy = rvy;
-      remain -= toEdge.t;
-      g.breath = Math.max(0, g.breath - (6 + g.wave * 0.4));
-      g.shake = 0.15;
-      burst(p.x, p.y, "#f0a7b5", 8);
-      tone(90, 0.12, "sawtooth", 0.03);
-      if (g.breath <= 0) { endGame(); return; }
-      continue;
-    }
-    if (!bestHit) {
-      p.x += p.vx * remain; p.y += p.vy * remain;
-      remain = 0;
-      break;
-    }
-    p.x = bestHit.x; p.y = bestHit.y;
-    const [rvx, rvy] = reflect(p.vx, p.vy, bestHit.nx, bestHit.ny);
-    p.vx = rvx; p.vy = rvy;
-    bestM.cool = 0.12;
-    remain -= bestHit.t;
-    burst(p.x, p.y, "#e7d3a1", 6);
-    tone(640, 0.05, "square", 0.02);
-  }
-
-  p.trail.push({ x: p.x, y: p.y });
-  if (p.trail.length > 28) p.trail.shift();
-
-  for (const s of g.spores) {
-    if (!s.alive) continue;
-    if (Math.hypot(s.x - p.x, s.y - p.y) < s.r + 7) {
-      s.alive = false;
-      g.combo = g.comboT > 0 ? g.combo + 1 : 1;
-      g.comboT = 1.15;
-      const gain = (s.golden ? 250 : 100) * g.combo;
-      g.score += gain;
-      g.breath = Math.min(100, g.breath + (s.golden ? 12 : 6));
-      burst(s.x, s.y, s.golden ? "#e7d3a1" : "#8fd0c8", 16);
-      tone(s.golden ? 880 : 480 + g.combo * 40, 0.12, "sine", 0.05);
-    }
-  }
-  if (g.spores.every(s => !s.alive)) {
-    g.score += 80 * g.wave;
-    g.wave += 1;
-    g.breath = Math.min(100, g.breath + 10);
-    spawnWave(g);
-  }
-
-  for (const m of g.mirrors) {
-    m.life -= dt;
-    m.cool = Math.max(0, m.cool - dt);
-  }
-  g.mirrors = g.mirrors.filter(m => m.life > 0);
-  for (const pt of g.particles) {
-    pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt;
-  }
-  g.particles = g.particles.filter(pt => pt.life > 0);
-  for (const r of g.ripples) r.t += dt;
-  g.ripples = g.ripples.filter(r => r.t < 0.6);
-
-  $("score").textContent = g.score;
-  $("wave").textContent = g.wave;
-  $("breath").textContent = Math.ceil(g.breath);
-}
-
-function rayCircle(px, py, vx, vy, cx, cy, r) {
-  const dx = px - cx, dy = py - cy;
-  const a = vx * vx + vy * vy;
-  const b = 2 * (dx * vx + dy * vy);
-  const c = dx * dx + dy * dy - r * r;
-  const disc = b * b - 4 * a * c;
-  if (disc < 0) return null;
-  const t = (-b + Math.sqrt(disc)) / (2 * a);
-  if (t < 0.001) return null;
-  const x = px + vx * t, y = py + vy * t;
-  const nx = (x - cx) / r, ny = (y - cy) / r;
-  return { t, nx, ny };
-}
-
-function draw() {
-  const a = arena();
-  const hue = 168 + game.wave * 4;
-  ctx.clearRect(0, 0, W, H);
-  const bg = ctx.createRadialGradient(a.cx, a.cy, 20, a.cx, a.cy, a.r * 1.6);
-  bg.addColorStop(0, "hsl(" + hue + ", 28%, 12%)");
-  bg.addColorStop(1, "#071614");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-  if (game.shake > 0) ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
-  ctx.beginPath();
-  ctx.arc(a.cx, a.cy, a.r, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(231,211,161,.35)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(a.cx, a.cy, a.r - 10, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(143,208,200,.12)";
-  ctx.stroke();
-
-  for (const s of game.spores) {
-    if (!s.alive) continue;
-    const pulse = 1 + Math.sin(game.time * 3 + s.phase) * 0.08;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r * pulse, 0, Math.PI * 2);
-    ctx.fillStyle = s.golden ? "rgba(231,211,161,.9)" : "rgba(143,208,200,.85)";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r * 1.8, 0, Math.PI * 2);
-    ctx.strokeStyle = s.golden ? "rgba(231,211,161,.35)" : "rgba(143,208,200,.28)";
-    ctx.stroke();
-  }
-
-  for (const m of game.mirrors) {
-    const alpha = Math.max(0.15, m.life / m.max);
-    ctx.strokeStyle = "rgba(231,211,161," + alpha + ")";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(m.x1, m.y1);
-    ctx.lineTo(m.x2, m.y2);
-    ctx.stroke();
-  }
-  if (game.preview) {
-    const q = game.preview;
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = "rgba(240,167,181,.8)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(q.x1, q.y1);
-    ctx.lineTo(q.x2, q.y2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  const p = game.pulse;
-  if (p) {
-    ctx.beginPath();
-    for (let i = 0; i < p.trail.length; i++) {
-      const t = p.trail[i];
-      if (i === 0) ctx.moveTo(t.x, t.y); else ctx.lineTo(t.x, t.y);
-    }
-    ctx.strokeStyle = "rgba(240,167,181,.55)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-    ctx.fillStyle = "#f4efe4";
-    ctx.fill();
-  }
-  for (const pt of game.particles) {
-    ctx.globalAlpha = Math.max(0, pt.life);
-    ctx.fillStyle = pt.color;
-    ctx.fillRect(pt.x, pt.y, 3, 3);
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-
-  if (state === "menu") {
-    ctx.fillStyle = "rgba(231,211,161,.55)";
-    ctx.font = "13px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("原創機制：褪色折光 × 自主脈衝 × 無盡潮次", W / 2, 28);
-  }
-}
-
-let last = performance.now();
-function loop(now) {
-  const dt = Math.min(0.033, (now - last) / 1000);
-  last = now;
-  if (state === "play") step(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-function pos(e) {
-  const r = canvas.getBoundingClientRect();
-  const t = e.touches ? e.touches[0] : e;
-  return { x: t.clientX - r.left, y: t.clientY - r.top };
-}
-canvas.addEventListener("pointerdown", (e) => {
-  if (state !== "play") return;
-  canvas.setPointerCapture(e.pointerId);
-  const p = pos(e);
-  game.pointer = p;
-  game.preview = { x1: p.x, y1: p.y, x2: p.x, y2: p.y };
-});
-canvas.addEventListener("pointermove", (e) => {
-  if (!game.pointer || state !== "play") return;
-  const p = pos(e);
-  game.preview = { x1: game.pointer.x, y1: game.pointer.y, x2: p.x, y2: p.y };
-});
-canvas.addEventListener("pointerup", (e) => {
-  if (!game.pointer || state !== "play") return;
-  const p = pos(e);
-  placeMirror(game.pointer.x, game.pointer.y, p.x, p.y);
-  game.pointer = null;
-  game.preview = null;
-  $("hint").classList.add("hidden");
-});
-
-$("play").onclick = startGame;
-$("again").onclick = startGame;
-$("home").onclick = () => {
-  state = "menu";
-  $("over").classList.add("hidden");
-  $("start").classList.remove("hidden");
-};
-$("mute").onclick = () => {
-  audioOn = !audioOn;
-  $("mute").textContent = audioOn ? "音效開" : "音效關";
-};
-
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
-}
-</script>
-</body>
-</html>
+function tick(dt){g.time+=dt;for(const k of['grace','damageCD','slow','comboTimer','echoTimer','echoReady'])g[k]=Math.max(0,g[k]-dt);if(g.boss)g.boss.cool=Math.max(0,g.boss.cool-dt);for(const m of g.mirrors){m.life-=dt;m.cool=Math.max(0,m.cool-dt)}g.mirrors=g.mirrors.filter(m=>m.life>0);for(const s of g.spores)if(s.alive&&(s.kind==='orbit'||s.kind==='wisp')){s.angle+=dt*(s.kind==='wisp'?1.6:.65);s.x=s.ox+Math.cos(s.angle)*14;s.y=s.oy+Math.sin(s.angle)*14}
+const count=Math.max(1,Math.ceil(Math.hypot(g.p.vx,g.p.vy)*dt/2));for(let i=0;i<count;i++){physics(dt/count);if(state!=='play')return}g.p.trail.push({x:g.p.x,y:g.p.y});if(g.p.trail.length>25)g.p.trail.shift();for(const p of g.particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.t-=dt}g.particles=g.particles.filter(p=>p.t>0);
+if(!g.boss&&g.spores.every(s=>!s.alive)){g.cleared++;points(g.wave*70);if(mode!=='practice')g.earned++;g.hp=Math.min(maxHP(),g.hp+10);if(g.wave===1)achievement('初潮完成');if(g.wave===5)achievement('五潮之後');if(g.wave===10)achievement('十潮');g.wave++;if(g.wave%2===0)upgrade();else nextWave()}hud()}
+function upgrade(){state='upgrade';show('<h2>潮間強化</h2><p>選一個本局強化，然後繼續。</p>');const options=[['持久折光','本局折光壽命 +0.4 秒',()=>g.runLife+=.4],['回息','立刻回復 25 潮息',()=>g.hp=Math.min(maxHP(),g.hp+25)],['放慢下一潮','下一潮速度降低 20%',()=>g.nextSlow=true],['連擊餘韻','本局連擊時間 +0.3 秒',()=>g.runCombo+=.3]];for(let i=options.length-1;i>0;i--){let j=Math.floor(random()*(i+1));[options[i],options[j]]=[options[j],options[i]]}for(const [title,desc,fn]of options.slice(0,3)){const b=button('', '',()=>{fn();nextWave()},'choice');b.innerHTML='<strong>'+title+'</strong>'+desc;$('panel').append(b)}}
+function end(quit){if(state==='over')return;state='over';pointer=null;meta.best=Math.max(meta.best,g.score);meta.money+=g.earned;if(mode==='daily')meta.daily[day()]=Math.max(meta.daily[day()]||0,g.score);save();hud();show(`<div class="en">TIDE NOTE</div><h1>${quit?'潮停於此':'潮散'}</h1><p>到達第 ${g.wave} 潮，完成 ${g.cleared} 潮。<br>分數 ${g.score}　最高 ${meta.best}<br>本局獲得 ${g.earned} 潮屑。</p><p class="note">${mode==='practice'?'練習模式不扣潮息、不發潮屑。':mode==='daily'?'每日潮不套用永久強化，依裝置當地日期產生。':'潮屑可在封面購買永久強化。'}</p>`);row([['再玩一次',()=>start(mode),'primary'],['回封面',menu]])}
+function pause(){if(state!=='play')return;state='paused';show('<h2>已暫停</h2><p>離開分頁也會自動暫停。</p>');row([['繼續',()=>{state='play';$('overlay').classList.add('hidden');$('pause').classList.remove('hidden')},'primary'],['結束本局',()=>end(true)]])}
+function shop(){show(`<h2>永久強化</h2><p>潮屑 ${meta.money}。不套用於每日潮。</p>`);for(const [key,name,desc,max,base]of[['life','持久折光','每級壽命 +0.3 秒',5,6],['health','潮息擴張','每級上限 +12',3,8],['bonus','分數共鳴','每級得分 +6%',5,10]]){const cost=base+meta[key]*4,b=button('',`${name} ${meta[key]}/${max} · ${desc} · ${cost} 潮屑`,()=>{meta.money-=cost;meta[key]++;save();hud();shop()},'choice');b.disabled=meta[key]>=max||meta.money<cost;$('panel').append(b)}row([['金紙',()=>{meta.skin='gold';save();shop()}],['琉璃',()=>{meta.skin='glass';save();shop()}],['回封面',menu]])}
+function codex(){show(`<h2>圖鑑與成就</h2><p>青孢子：基本目標。<br>金孢子：較高得分、回復更多潮息。<br>巡孢子：繞圈移動。<br>裂孢子：裂成兩顆小孢子。<br>螢孢子：體積較小、轉動更快。<br>暗礁：碰撞扣潮息。<br>潮符：回息／緩潮／延長現有折光。<br>潮核：每五潮出現，打中多次擊破。<br>三折回聲：兩秒內反射三次，短時間自動收集附近一顆孢子。</p><h2>成就</h2><p>${['初潮完成','五連擊','採集三十','潮核碎裂','五潮之後','十潮'].map(a=>(meta.ach.includes(a)?'已達成':'未達成')+' · '+a).join('<br>')}</p><p class="note">每日潮固定關卡亂數與強化選項；並非連線排行榜。存檔只在目前裝置與網站中保存。</p>`);row([['回封面',menu]])}
+function place(a,b){let dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),cx=(a.x+b.x)/2,cy=(a.y+b.y)/2;if(len<18){const s=Math.hypot(g.p.vx,g.p.vy);dx=-g.p.vy/s;dy=g.p.vx/s;len=Math.min(100,A.r*.8);cx=a.x;cy=a.y}else{dx/=len;dy/=len;len=Math.max(28,Math.min(len,150,A.r*1.1))}if(Math.hypot(cx-A.x,cy-A.y)>A.r+20)return;const life=Math.max(1.8,4.5-g.wave*.07)+g.runLife+(mode==='daily'?0:meta.life*.3);g.mirrors.push({x1:cx-dx*len/2,y1:cy-dy*len/2,x2:cx+dx*len/2,y2:cy+dy*len/2,life,max:life,cool:0});if(g.mirrors.length>5)g.mirrors.shift();beep(530)}
+canvas.onpointerdown=e=>{if(state!=='play'||pointer)return;canvas.setPointerCapture(e.pointerId);pointer={id:e.pointerId,x:e.clientX,y:e.clientY,endX:e.clientX,endY:e.clientY}};canvas.onpointermove=e=>{if(pointer&&pointer.id===e.pointerId){pointer.endX=e.clientX;pointer.endY=e.clientY}};canvas.onpointerup=e=>{if(pointer&&pointer.id===e.pointerId){if(state==='play')place(pointer,{x:e.clientX,y:e.clientY});pointer=null}};canvas.onpointercancel=()=>pointer=null;$('pause').onclick=pause;document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();pause()}});
+function circle(x,y,r,color,stroke=false){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx[stroke?'strokeStyle':'fillStyle']=color;stroke?ctx.stroke():ctx.fill()}
+function draw(){const theme=themes[g?Math.floor((g.wave-1)/3)%4:0],bg=ctx.createRadialGradient(A.x,A.y,0,A.x,A.y,A.r*1.7);bg.addColorStop(0,`hsl(${theme[1]},30%,13%)`);bg.addColorStop(1,'#071614');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);ctx.lineWidth=2;circle(A.x,A.y,A.r,'#d9c89166',true);circle(A.x,A.y,A.r-9,'#8fd0c81b',true);if(!g)return;for(const r of g.reefs){circle(r.x,r.y,r.r,'#663f49');circle(r.x,r.y,r.r,'#c47b88',true)}for(const s of g.spores)if(s.alive){const c={normal:'#8fd0c8',gold:'#e7d3a1',orbit:'#8fbae4',split:'#f0a7b5',wisp:'#c9a5ff'}[s.kind];circle(s.x,s.y,s.r+5,c+'33',true);circle(s.x,s.y,s.r,c)}for(const u of g.items){circle(u.x,u.y,u.r,'#eee7d7');ctx.fillStyle='#152c25';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText({heal:'+',slow:'慢',long:'長'}[u.kind],u.x,u.y+4)}if(g.boss){const b=g.boss;circle(b.x,b.y,b.r,b.cool>0?'#fff1cc':'#d8ae68');ctx.fillStyle='#16201a';ctx.font='bold 14px system-ui';ctx.textAlign='center';ctx.fillText(b.hp,b.x,b.y+5)}ctx.lineCap='round';for(const m of g.mirrors){ctx.globalAlpha=Math.max(.18,m.life/m.max);ctx.strokeStyle=meta.skin==='glass'?'#9fd7ff':'#e7d3a1';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(m.x1,m.y1);ctx.lineTo(m.x2,m.y2);ctx.stroke()}ctx.globalAlpha=1;if(pointer){ctx.setLineDash([6,5]);ctx.strokeStyle='#f0a7b5';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(pointer.x,pointer.y);ctx.lineTo(pointer.endX,pointer.endY);ctx.stroke();ctx.setLineDash([])}if(g.p){ctx.strokeStyle='#f0a7b580';ctx.lineWidth=2;ctx.beginPath();g.p.trail.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();circle(g.p.x,g.p.y,7,g.echoReady>0?'#e7d3a1':'#fff5e1');if(g.grace>0)circle(g.p.x,g.p.y,13,'#8fd0c8',true)}for(const p of g.particles){ctx.globalAlpha=Math.max(0,p.t/.6);circle(p.x,p.y,2,p.color)}ctx.globalAlpha=1;if(state==='play')$('bottom').textContent=theme[0]+' · '+(g.grace>0?'護航 '+g.grace.toFixed(1)+' 秒':mode==='practice'?'練習不扣潮息':'點擊／拖曳放折光')+(g.comboTimer>0&&g.combo>1?' · '+g.combo+' 連擊':'')}
+let last=performance.now();function frame(now){const dt=Math.min(.04,Math.max(0,(now-last)/1000));last=now;if(state==='play')tick(dt);draw();if(now>toastEnd)$('toast').style.opacity=0;requestAnimationFrame(frame)}
+// Remove only old Foldtide caches/workers from this folder, not unrelated websites.
+if('serviceWorker'in navigator&&location.protocol.startsWith('http')){const scope=new URL('./',location.href).href;navigator.serviceWorker.getRegistrations().then(rs=>{for(const r of rs)if(r.scope===scope&&r.active&&new URL(r.active.scriptURL).pathname.endsWith('/sw.js'))r.unregister()}).catch(()=>{});if('caches'in window)caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('foldtide-')).map(k=>caches.delete(k)))).catch(()=>{})}
+menu();requestAnimationFrame(frame);
+</script></body></html>

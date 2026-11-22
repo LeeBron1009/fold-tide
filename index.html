@@ -61,4 +61,4 @@ let last=performance.now();function frame(now){const dt=Math.min(.04,Math.max(0,
 // Remove only old Foldtide caches/workers from this folder, not unrelated websites.
 if('serviceWorker'in navigator&&location.protocol.startsWith('http')){const scope=new URL('./',location.href).href;navigator.serviceWorker.getRegistrations().then(rs=>{for(const r of rs)if(r.scope===scope&&r.active&&new URL(r.active.scriptURL).pathname.endsWith('/sw.js'))r.unregister()}).catch(()=>{});if('caches'in window)caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('foldtide-')).map(k=>caches.delete(k)))).catch(()=>{})}
 menu();requestAnimationFrame(frame);
-<script src="tutorial.js"></script></body></html>
+</script><script src="tutorial.js"></body></html>

@@ -1,0 +1,12 @@
+{
+  "name": "折潮 Foldtide",
+  "short_name": "折潮",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#071614",
+  "theme_color": "#071614",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
